@@ -1742,3 +1742,27 @@ def test_get_docs_to_update_secondary_build_ignores_content_hash_gate() -> None:
     assert len(future_docs) == 1
     assert future_docs[0].id == "doc1"
     assert "doc1" in future_hashes
+
+
+def test_content_hash_is_blind_to_tabular_content() -> None:
+    """A tabular document's hash never moves when its sheets change.
+
+    content_hash() walks TextSections and ImageSections only, so two workbooks
+    with different staged CSVs hash the same. This is why the tabular re-chunk
+    migration has to pass force_update: without it the content-hash gate skips
+    every spreadsheet and the migration is a silent no-op.
+    """
+
+    def _tabular_doc(csv_file_id: str) -> Document:
+        return Document(
+            id="book",
+            title="Book",
+            semantic_identifier="book.xlsx",
+            sections=[TabularSection(csv_file_id=csv_file_id, link="l")],
+            source=DocumentSource.FILE,
+            metadata={},
+        )
+
+    assert (
+        _tabular_doc("csv-v1").content_hash() == _tabular_doc("csv-v2").content_hash()
+    )

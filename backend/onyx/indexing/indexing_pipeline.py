@@ -509,6 +509,7 @@ def index_doc_batch_with_handler(
     llm_enrichment_allowed: bool = True,
     image_summarization_llm: LLM | None = None,
     llm: LLM | None = None,
+    force_update: bool = False,
     skip_spreadsheet_content: bool = False,
 ) -> IndexingPipelineResult:
     # Documents whose prepare() committed before the batch raised. Their change
@@ -589,7 +590,7 @@ def index_doc_batch_with_handler(
         )
 
     batch_result: IndexingPipelineResult | Exception = _index(
-        document_batch, force_update=False
+        document_batch, force_update=force_update
     )
     if not isinstance(batch_result, Exception):
         return batch_result
@@ -602,7 +603,7 @@ def index_doc_batch_with_handler(
     results: list[IndexingPipelineResult] = []
     for document in document_batch:
         result: IndexingPipelineResult | Exception = _index(
-            [document], force_update=document.id in prepared
+            [document], force_update=force_update or document.id in prepared
         )
         if isinstance(result, Exception):
             result = _failure_result([document], result)
@@ -1766,12 +1767,18 @@ def run_indexing_pipeline(
     ignore_time_skip: bool = False,
     index_to_secondary: bool = False,
     from_beginning: bool = False,
+    force_update: bool = False,
     skip_spreadsheet_content: bool = False,
 ) -> IndexingPipelineResult:
     """Builds a pipeline which takes in a list (batch) of docs and indexes them.
 
     index_to_secondary disables the content-hash gate + stamp for FUTURE writes so
     they don't cross-suppress the PRESENT index's shared hash.
+
+    force_update bypasses both change gates. Needed when the document is
+    unchanged at the source but must be re-chunked anyway (see
+    run_tabular_rechunk): a tabular document's content_hash never moves,
+    because content_hash() ignores TabularSections.
 
     skip_spreadsheet_content indexes each tabular file as its title plus a
     placeholder (see skip_tabular_content). Only connector indexing sets it:
@@ -1841,5 +1848,6 @@ def run_indexing_pipeline(
             ignore_time_skip=ignore_time_skip,
             index_to_secondary=index_to_secondary,
             from_beginning=from_beginning,
+            force_update=force_update,
             skip_spreadsheet_content=skip_spreadsheet_content,
         )
